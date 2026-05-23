@@ -24,6 +24,11 @@ export interface Bounty {
   creator_id?: string | null;
   creator_username?: string | null;
   has_repo?: boolean;
+  winner_wallet?: string | null;
+  winner_submission_id?: string | null;
+  payout_tx_hash?: string | null;
+  payout_at?: string | null;
+  payout_amount?: number | null;
 }
 
 export interface Submission {
