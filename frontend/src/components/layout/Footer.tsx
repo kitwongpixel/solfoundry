@@ -51,6 +51,7 @@ export function Footer() {
               {[
                 { label: 'Bounties', to: '/bounties' },
                 { label: 'Leaderboard', to: '/leaderboard' },
+                { label: 'Tokenomics', to: '/tokenomics' },
                 { label: 'How It Works', to: '/how-it-works' },
                 { label: 'Post a Bounty', to: '/bounties/create' },
               ].map((link) => (

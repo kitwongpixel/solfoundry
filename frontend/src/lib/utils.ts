@@ -1,4 +1,13 @@
 const NUMBER_FORMAT = new Intl.NumberFormat('en-US');
+const COMPACT_NUMBER_FORMAT = new Intl.NumberFormat('en-US', {
+  maximumFractionDigits: 1,
+  minimumFractionDigits: 1,
+});
+const PRICE_FORMAT = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  maximumFractionDigits: 6,
+});
 
 export const LANG_COLORS: Record<string, string> = {
   TypeScript: '#3178C6',
@@ -71,4 +80,32 @@ export function formatCurrency(amount: number, token = 'USD'): string {
   }
 
   return `${NUMBER_FORMAT.format(value)} ${normalized}`;
+}
+
+export function formatUsdPrice(amount: number): string {
+  if (!Number.isFinite(amount)) return '$0.00';
+  return PRICE_FORMAT.format(amount);
+}
+
+export function formatCompactValue(value: number): string {
+  if (!Number.isFinite(value)) return '0';
+
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000_000) return `${COMPACT_NUMBER_FORMAT.format(value / 1_000_000_000)}b`;
+  if (abs >= 1_000_000) return `${COMPACT_NUMBER_FORMAT.format(value / 1_000_000)}m`;
+  if (abs >= 1_000) return `${COMPACT_NUMBER_FORMAT.format(value / 1_000)}k`;
+  if (Number.isInteger(value)) return `${value}`;
+  return COMPACT_NUMBER_FORMAT.format(value);
+}
+
+export function formatPercentChange(value: number): string {
+  if (!Number.isFinite(value)) return '0.0%';
+  const sign = value > 0 ? '+' : '';
+  return `${sign}${value.toFixed(1)}%`;
+}
+
+export function truncateAddress(address: string, visible = 4): string {
+  if (!address) return '—';
+  if (address.length <= visible * 2 + 3) return address;
+  return `${address.slice(0, visible)}...${address.slice(-visible)}`;
 }
