@@ -1,22 +1,19 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, GitPullRequest, DollarSign, Settings } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { GitPullRequest } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useBounties } from '../../hooks/useBounties';
+import { useLeaderboard } from '../../hooks/useLeaderboard';
 import { timeAgo, formatCurrency } from '../../lib/utils';
 import { fadeIn, staggerContainer, staggerItem } from '../../lib/animations';
 import type { Bounty } from '../../types/bounty';
+import { buildProfileHighlights } from '../../lib/profile';
+import { ProfileStatsRow } from './ProfileStatsRow';
+import { GitHubActivityGraph } from './GitHubActivityGraph';
+import { EarningsHistoryChart } from './EarningsHistoryChart';
 
 const TABS = ['My Bounties', 'My Submissions', 'Earnings', 'Settings'] as const;
 type Tab = typeof TABS[number];
-
-const MONTHLY_MOCK = [
-  { month: 'Jan', usdc: 200, fndry: 0 },
-  { month: 'Feb', usdc: 500, fndry: 50000 },
-  { month: 'Mar', usdc: 150, fndry: 0 },
-  { month: 'Apr', usdc: 800, fndry: 100000 },
-];
 
 function BountyStatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
@@ -82,41 +79,6 @@ function SubmissionsTab() {
   );
 }
 
-function EarningsTab() {
-  const totalEarned = MONTHLY_MOCK.reduce((s, m) => s + m.usdc, 0);
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: 'Total Earned', value: `$${totalEarned}`, color: 'text-emerald' },
-          { label: 'This Month', value: '$800', color: 'text-emerald' },
-          { label: 'Pending', value: '$0', color: 'text-text-muted' },
-        ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-border bg-forge-900 p-4">
-            <p className="text-xs text-text-muted mb-1">{s.label}</p>
-            <p className={`font-mono text-xl font-bold ${s.color}`}>{s.value}</p>
-          </div>
-        ))}
-      </div>
-      <div className="rounded-xl border border-border bg-forge-900 p-4">
-        <p className="text-sm font-medium text-text-secondary mb-4">Monthly Earnings</p>
-        <ResponsiveContainer width="100%" height={180}>
-          <BarChart data={MONTHLY_MOCK} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-            <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#5C5C78', fontSize: 12, fontFamily: 'JetBrains Mono' }} />
-            <YAxis hide />
-            <Tooltip
-              contentStyle={{ backgroundColor: '#16161F', border: '1px solid #1E1E2E', borderRadius: 8, fontFamily: 'JetBrains Mono', fontSize: 12 }}
-              labelStyle={{ color: '#A0A0B8' }}
-              itemStyle={{ color: '#00E676' }}
-            />
-            <Bar dataKey="usdc" radius={[4, 4, 0, 0]} fill="#00E676" opacity={0.85} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  );
-}
-
 function SettingsTab() {
   const { user } = useAuth();
   return (
@@ -151,7 +113,8 @@ function SettingsTab() {
 export function ProfileDashboard() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('My Bounties');
-  const { data: bountiesData, isLoading } = useBounties({ limit: 50 });
+  const { data: bountiesData, isLoading: bountiesLoading } = useBounties({ limit: 200 });
+  const { data: leaderboardData, isLoading: leaderboardLoading } = useLeaderboard('all');
 
   if (!user) return null;
 
@@ -160,6 +123,8 @@ export function ProfileDashboard() {
     : 'Recently';
 
   const myBounties = bountiesData?.items.filter((b) => b.creator_id === user.id) ?? [];
+  const leaderboardEntry = leaderboardData?.find((entry) => entry.username.toLowerCase() === user.username.toLowerCase()) ?? null;
+  const profileHighlights = buildProfileHighlights(leaderboardEntry);
 
   return (
     <motion.div variants={fadeIn} initial="initial" animate="animate" className="max-w-4xl mx-auto px-4 py-8">
@@ -178,6 +143,18 @@ export function ProfileDashboard() {
             <p className="mt-1 font-mono text-sm text-text-muted">
               Joined {joinDate} · {myBounties.length} bounties created
             </p>
+            {leaderboardEntry?.topSkills?.length ? (
+              <div className="flex flex-wrap gap-2 mt-4">
+                {leaderboardEntry.topSkills.slice(0, 4).map((skill) => (
+                  <span
+                    key={skill}
+                    className="inline-flex items-center rounded-full border border-border bg-forge-800 px-2.5 py-1 text-xs text-text-secondary"
+                  >
+                    {skill}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -199,11 +176,47 @@ export function ProfileDashboard() {
         </div>
       </div>
 
+      <div className="space-y-6 mb-6">
+        <ProfileStatsRow stats={profileHighlights} loading={leaderboardLoading} />
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <GitHubActivityGraph username={user.username} />
+          <EarningsHistoryChart
+            walletAddress={user.wallet_address}
+            bounties={bountiesData?.items ?? []}
+            fallbackTotal={profileHighlights.totalEarned}
+            loading={bountiesLoading}
+          />
+        </div>
+      </div>
+
       {/* Tab content */}
       <div>
-        {activeTab === 'My Bounties' && <MyBountiesTab bounties={myBounties} loading={isLoading} />}
+        {activeTab === 'My Bounties' && <MyBountiesTab bounties={myBounties} loading={bountiesLoading} />}
         {activeTab === 'My Submissions' && <SubmissionsTab />}
-        {activeTab === 'Earnings' && <EarningsTab />}
+        {activeTab === 'Earnings' && (
+          <div className="rounded-xl border border-border bg-forge-900 p-6">
+            <p className="text-sm text-text-secondary mb-4">
+              Earnings are summarized above using completed bounty payouts tied to your wallet.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="rounded-lg border border-border bg-forge-950 p-4">
+                <p className="text-xs text-text-muted mb-1">Wallet</p>
+                <p className="font-mono text-sm text-text-primary break-all">
+                  {user.wallet_address ?? 'Not linked'}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-forge-950 p-4">
+                <p className="text-xs text-text-muted mb-1">FNDRY Earned</p>
+                <p className="font-mono text-sm text-emerald">{formatCurrency(profileHighlights.totalEarned, 'FNDRY')}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-forge-950 p-4">
+                <p className="text-xs text-text-muted mb-1">Payout Source</p>
+                <p className="font-mono text-sm text-text-primary">Completed bounties</p>
+              </div>
+            </div>
+          </div>
+        )}
         {activeTab === 'Settings' && <SettingsTab />}
       </div>
     </motion.div>
